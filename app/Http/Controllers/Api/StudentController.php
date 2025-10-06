@@ -7,6 +7,7 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Log;
 
 class StudentController extends Controller
 {
@@ -15,25 +16,44 @@ class StudentController extends Controller
      */
     public function index(): JsonResponse
     {
-        $students = Student::with(['interactions', 'readingSessions'])
-                          ->orderBy('name')
-                          ->get()
-                          ->map(function ($student) {
-                              return [
-                                  'id' => $student->id,
-                                  'name' => $student->name,
-                                  'level' => $student->level,
-                                  'age' => $student->age,
-                                  'total_words_read' => $student->total_words_read,
-                                  'total_reading_time' => $student->total_reading_time,
-                                  'created_at' => $student->created_at
-                              ];
-                          });
+        try {
+            $students = Student::with(['classroom.level', 'interactions', 'readingSessions'])
+                              ->orderBy('name')
+                              ->get()
+                              ->map(function ($student) {
+                                  // Vérifications de sécurité pour éviter les erreurs null
+                                  $classroom = $student->classroom;
+                                  $level = $classroom ? $classroom->level : null;
+                                  
+                                  return [
+                                      'id' => $student->id,
+                                      'name' => $student->name,
+                                      'classroom' => $classroom ? [
+                                          'id' => $classroom->id,
+                                          'name' => $classroom->name,
+                                          'section' => $classroom->section,
+                                          'level' => $level ? [
+                                              'id' => $level->id,
+                                              'name' => $level->name
+                                          ] : null
+                                      ] : null,
+                                      'total_words_read' => $student->total_words_read ?? 0,
+                                      'total_reading_time' => $student->total_reading_time ?? 0,
+                                      'created_at' => $student->created_at
+                                  ];
+                              });
 
-        return response()->json([
-            'success' => true,
-            'data' => $students
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => $students
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des élèves: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des élèves'
+            ], 500);
+        }
     }
 
     /**
@@ -43,16 +63,29 @@ class StudentController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'level' => ['required', Rule::in(['CE1', 'CE2', 'CM1', 'CM2'])],
-            'age' => 'required|integer|min:6|max:12'
+            'classroom_id' => 'required|exists:classrooms,id'
         ]);
 
         $student = Student::create($validated);
+        $student->load('classroom.level');
 
         return response()->json([
             'success' => true,
             'message' => 'Élève créé avec succès',
-            'data' => $student
+            'data' => [
+                'id' => $student->id,
+                'name' => $student->name,
+                'classroom' => [
+                    'id' => $student->classroom->id,
+                    'name' => $student->classroom->name,
+                    'section' => $student->classroom->section
+                ],
+                'level' => [
+                    'id' => $student->classroom->level->id,
+                    'name' => $student->classroom->level->name
+                ],
+                'created_at' => $student->created_at
+            ]
         ], 201);
     }
 
@@ -112,16 +145,29 @@ class StudentController extends Controller
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'level' => ['sometimes', Rule::in(['CE1', 'CE2', 'CM1', 'CM2'])],
-            'age' => 'sometimes|integer|min:6|max:12'
+            'classroom_id' => 'sometimes|exists:classrooms,id'
         ]);
 
         $student->update($validated);
+        $student->load('classroom.level');
 
         return response()->json([
             'success' => true,
             'message' => 'Élève mis à jour avec succès',
-            'data' => $student
+            'data' => [
+                'id' => $student->id,
+                'name' => $student->name,
+                'classroom' => [
+                    'id' => $student->classroom->id,
+                    'name' => $student->classroom->name,
+                    'section' => $student->classroom->section
+                ],
+                'level' => [
+                    'id' => $student->classroom->level->id,
+                    'name' => $student->classroom->level->name
+                ],
+                'updated_at' => $student->updated_at
+            ]
         ]);
     }
 

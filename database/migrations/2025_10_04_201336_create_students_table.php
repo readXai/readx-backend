@@ -14,9 +14,12 @@ return new class extends Migration
         Schema::create('students', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->enum('level', ['CE1', 'CE2', 'CM1', 'CM2']);
+            $table->foreignId('classroom_id')->constrained('classrooms')->onDelete('cascade');
             $table->integer('age');
             $table->timestamps();
+
+            // Index pour optimiser les requêtes par classe
+            $table->index('classroom_id');
         });
     }
 

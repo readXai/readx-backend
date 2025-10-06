@@ -9,6 +9,13 @@ class Image extends Model
 {
     protected $fillable = [
         'image_path',
+        'thumbnail_path',
+        'preview_path',
+        'mobile_path',
+        'original_name',
+        'filename',
+        'file_size',
+        'mime_type',
         'description'
     ];
 
@@ -21,11 +28,48 @@ class Image extends Model
     }
 
     /**
-     * Obtenir l'URL complète de l'image
+     * Obtenir l'URL complète de l'image originale
      */
     public function getImageUrlAttribute(): string
     {
-        return asset('storage/' . $this->image_path);
+        return config('app.url') . '/storage/images/' . $this->image_path;
+    }
+    
+    /**
+     * Obtenir l'URL du thumbnail
+     */
+    public function getThumbnailUrlAttribute(): string
+    {
+        return config('app.url') . '/storage/images/' . $this->thumbnail_path;
+    }
+    
+    /**
+     * Obtenir l'URL de la preview
+     */
+    public function getPreviewUrlAttribute(): string
+    {
+        return config('app.url') . '/storage/images/' . $this->preview_path;
+    }
+    
+    /**
+     * Obtenir l'URL de la version mobile
+     */
+    public function getMobileUrlAttribute(): string
+    {
+        return config('app.url') . '/storage/images/' . $this->mobile_path;
+    }
+    
+    /**
+     * Obtenir toutes les URLs des versions
+     */
+    public function getAllUrlsAttribute(): array
+    {
+        return [
+            'original' => $this->image_url,
+            'thumbnail' => $this->thumbnail_url,
+            'preview' => $this->preview_url,
+            'mobile' => $this->mobile_url
+        ];
     }
 
     /**

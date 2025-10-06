@@ -9,34 +9,72 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TextController extends Controller
 {
     /**
-     * Lister tous les textes
+     * Lister tous les textes avec filtrage optionnel par classe
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $texts = Text::with(['words', 'interactions', 'readingSessions'])
-                    ->orderBy('title')
-                    ->get()
-                    ->map(function ($text) {
-                        return [
-                            'id' => $text->id,
-                            'title' => $text->title,
-                            'content' => $text->content,
-                            'content_preview' => mb_substr($text->content, 0, 100),
-                            'difficulty_level' => $text->difficulty_level,
-                            'words_count' => $text->words()->count(),
-                            'interactions_count' => $text->interactions()->count(),
-                            'created_at' => $text->created_at
-                        ];
-                    });
+        try {
+            $query = Text::with(['words', 'interactions', 'readingSessions', 'classrooms.level']);
+            
+            // Filtrer par classe si spécifié
+            if ($request->has('classroom_id')) {
+                $query->whereHas('classrooms', function ($q) use ($request) {
+                    $q->where('classroom_id', $request->classroom_id);
+                });
+            }
+            
+            // Filtrer par niveau si spécifié (pour compatibilité)
+            if ($request->has('level')) {
+                $query->whereHas('classrooms.level', function ($q) use ($request) {
+                    $q->where('name', $request->level);
+                });
+            }
 
-        return response()->json([
-            'success' => true,
-            'data' => $texts
-        ]);
+            $texts = $query->orderBy('title')
+                        ->get()
+                        ->map(function ($text) {
+                            return [
+                                'id' => $text->id,
+                                'title' => $text->title,
+                                'content' => $text->content,
+                                'content_preview' => mb_substr($text->content, 0, 100),
+                                'difficulty_level' => $text->difficulty_level, // Gardé pour compatibilité
+                                'classrooms' => $text->classrooms->map(function ($classroom) {
+                                    // Vérifications de sécurité pour éviter les erreurs null
+                                    $level = $classroom->level;
+                                    
+                                    return [
+                                        'id' => $classroom->id,
+                                        'name' => $classroom->name,
+                                        'level' => $level ? [
+                                            'id' => $level->id,
+                                            'name' => $level->name,
+                                            'order' => $level->order
+                                        ] : null
+                                    ];
+                                }),
+                                'words_count' => $text->words()->count(),
+                                'interactions_count' => $text->interactions()->count(),
+                                'created_at' => $text->created_at
+                            ];
+                        });
+
+            return response()->json([
+                'success' => true,
+                'data' => $texts
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des textes: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des textes'
+            ], 500);
+        }
     }
 
     /**

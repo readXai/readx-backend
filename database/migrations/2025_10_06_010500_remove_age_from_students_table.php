@@ -11,12 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('texts', function (Blueprint $table) {
-            $table->id();
-            $table->string('title');
-            $table->text('content'); // Contenu arabe avec vocalisation
-            $table->enum('difficulty_level', ['CE1', 'CE2', 'CM1', 'CM2'])->nullable();
-            $table->timestamps();
+        Schema::table('students', function (Blueprint $table) {
+            $table->dropColumn('age');
         });
     }
 
@@ -25,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('texts');
+        Schema::table('students', function (Blueprint $table) {
+            $table->integer('age')->nullable();
+        });
     }
 };

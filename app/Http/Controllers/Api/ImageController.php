@@ -5,12 +5,19 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Image;
 use App\Models\Word;
+use App\Services\ImageOptimizationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 
 class ImageController extends Controller
 {
+    protected ImageOptimizationService $imageService;
+    
+    public function __construct(ImageOptimizationService $imageService)
+    {
+        $this->imageService = $imageService;
+    }
     /**
      * Lister toutes les images
      */
@@ -38,39 +45,70 @@ class ImageController extends Controller
     }
 
     /**
-     * Uploader une nouvelle image
+     * Uploader une nouvelle image avec optimisation automatique
      */
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'image' => 'required|file|max:10240', // 10MB max
             'description' => 'sometimes|string|max:255'
         ]);
 
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('images', 'public');
+        if (!$request->hasFile('image')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune image fournie'
+            ], 400);
+        }
+
+        $uploadedFile = $request->file('image');
+        
+        // Valider que c'est bien une image
+        if (!$this->imageService->isValidImage($uploadedFile)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Format d\'image non supporté ou fichier trop volumineux'
+            ], 422);
+        }
+
+        try {
+            // Optimiser et stocker l'image avec toutes ses versions
+            $optimizedData = $this->imageService->processUploadedImage($uploadedFile, 'uploads');
             
+            // Créer l'entrée en base avec les métadonnées
             $image = Image::create([
-                'image_path' => $imagePath,
+                'image_path' => $optimizedData['paths']['original'],
+                'thumbnail_path' => $optimizedData['paths']['thumbnail'],
+                'preview_path' => $optimizedData['paths']['preview'],
+                'mobile_path' => $optimizedData['paths']['mobile'],
+                'original_name' => $optimizedData['original_name'],
+                'filename' => $optimizedData['filename'],
+                'file_size' => $optimizedData['size'],
+                'mime_type' => $optimizedData['mime_type'],
                 'description' => $validated['description'] ?? null
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Image uploadée avec succès',
+                'message' => 'Image uploadée et optimisée avec succès',
                 'data' => [
                     'id' => $image->id,
-                    'image_path' => $image->image_path,
-                    'image_url' => $image->image_url,
-                    'description' => $image->description
+                    'original_name' => $image->original_name,
+                    'description' => $image->description,
+                    'file_size' => $image->file_size,
+                    'mime_type' => $image->mime_type,
+                    'urls' => $optimizedData['urls'],
+                    'optimized' => true,
+                    'versions' => ['original', 'thumbnail', 'preview', 'mobile']
                 ]
             ], 201);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'optimisation de l\'image: ' . $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Aucune image fournie'
-        ], 400);
     }
 
     /**
@@ -125,7 +163,7 @@ class ImageController extends Controller
     }
 
     /**
-     * Supprimer une image
+     * Supprimer une image et toutes ses versions optimisées
      */
     public function destroy(string $id): JsonResponse
     {
@@ -138,17 +176,31 @@ class ImageController extends Controller
             ], 404);
         }
 
-        // Supprimer le fichier physique
-        if (Storage::disk('public')->exists($image->image_path)) {
-            Storage::disk('public')->delete($image->image_path);
+        try {
+            // Supprimer toutes les versions physiques
+            $paths = [
+                $image->image_path,
+                $image->thumbnail_path,
+                $image->preview_path,
+                $image->mobile_path
+            ];
+            
+            $this->imageService->deleteImageVersions($paths);
+            
+            // Supprimer l'entrée en base
+            $image->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Image et toutes ses versions supprimées avec succès'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression: ' . $e->getMessage()
+            ], 500);
         }
-
-        $image->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Image supprimée avec succès'
-        ]);
     }
 
     /**

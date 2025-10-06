@@ -11,12 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('texts', function (Blueprint $table) {
+        Schema::create('classroom_text', function (Blueprint $table) {
             $table->id();
-            $table->string('title');
-            $table->text('content'); // Contenu arabe avec vocalisation
-            $table->enum('difficulty_level', ['CE1', 'CE2', 'CM1', 'CM2'])->nullable();
+            $table->foreignId('classroom_id')->constrained()->onDelete('cascade');
+            $table->foreignId('text_id')->constrained()->onDelete('cascade');
             $table->timestamps();
+            
+            // Éviter les doublons
+            $table->unique(['classroom_id', 'text_id']);
         });
     }
 
@@ -25,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('texts');
+        Schema::dropIfExists('classroom_text');
     }
 };

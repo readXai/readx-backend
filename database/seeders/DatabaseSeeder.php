@@ -13,8 +13,14 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Seeder pour les niveaux, classes et élèves
+        $this->call([
+            LevelsAndClassroomsSeeder::class,
+            TextClassroomSeeder::class,
+            WordsSeeder::class,
+        ]);
+        
         // User::factory(10)->create();
-
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',

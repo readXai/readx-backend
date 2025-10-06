@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\WordController;
 use App\Http\Controllers\Api\ImageController;
 use App\Http\Controllers\Api\InteractionController;
 use App\Http\Controllers\Api\ReadingSessionController;
+use App\Http\Controllers\Api\LevelController;
+use App\Http\Controllers\Api\ClassroomController;
 
 /*
 |--------------------------------------------------------------------------
@@ -18,6 +20,27 @@ use App\Http\Controllers\Api\ReadingSessionController;
 | élèves CE1-CM2. Toutes les routes sont préfixées par /api
 |
 */
+
+// Routes pour les niveaux scolaires
+Route::prefix('levels')->group(function () {
+    Route::get('/', [LevelController::class, 'index']);
+    Route::get('/{level}', [LevelController::class, 'show']);
+    Route::post('/', [LevelController::class, 'store']);
+    Route::put('/{level}', [LevelController::class, 'update']);
+    Route::delete('/{level}', [LevelController::class, 'destroy']);
+    Route::post('/{level}/dissociate-classrooms', [LevelController::class, 'dissociateClassrooms']);
+    Route::post('/{level}/dissociate-texts', [LevelController::class, 'dissociateTexts']);
+});
+
+// Routes pour les classes
+Route::prefix('classrooms')->group(function () {
+    Route::get('/', [ClassroomController::class, 'index']);
+    Route::post('/', [ClassroomController::class, 'store']);
+    Route::get('/{classroom}', [ClassroomController::class, 'show']);
+    Route::put('/{classroom}', [ClassroomController::class, 'update']);
+    Route::put('/{classroom}/assign-level', [ClassroomController::class, 'assignLevel']);
+    Route::delete('/{classroom}', [ClassroomController::class, 'destroy']);
+});
 
 // Routes pour les élèves
 Route::prefix('students')->group(function () {

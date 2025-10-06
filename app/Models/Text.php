@@ -19,6 +19,14 @@ class Text extends Model
     ];
 
     /**
+     * Relation many-to-many avec les classes
+     */
+    public function classrooms(): BelongsToMany
+    {
+        return $this->belongsToMany(Classroom::class, 'classroom_text');
+    }
+
+    /**
      * Relation many-to-many avec les mots via text_words
      */
     public function words(): BelongsToMany
