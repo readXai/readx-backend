@@ -10,13 +10,10 @@ class Text extends Model
 {
     protected $fillable = [
         'title',
-        'content',
-        'difficulty_level'
+        'content'
     ];
 
-    protected $casts = [
-        'difficulty_level' => 'string'
-    ];
+
 
     /**
      * Relation many-to-many avec les classes

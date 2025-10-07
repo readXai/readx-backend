@@ -38,29 +38,39 @@ class TextController extends Controller
             $texts = $query->orderBy('title')
                         ->get()
                         ->map(function ($text) {
+                            // Dériver les niveaux à partir des classes associées
+                            $levels = $text->classrooms->map(function ($classroom) {
+                                return $classroom->level ? $classroom->level->name : null;
+                            })->filter()->unique()->values()->toArray();
+                            
+                            // Calculer les statistiques de lecture
+                            $readingSessions = \App\Models\ReadingSession::where('text_id', $text->id)->get();
+                            $uniqueStudents = $readingSessions->pluck('student_id')->unique()->count();
+                            $totalReadingTime = $readingSessions->sum('duration') ?? 0; // en secondes
+                            
                             return [
                                 'id' => $text->id,
                                 'title' => $text->title,
                                 'content' => $text->content,
                                 'content_preview' => mb_substr($text->content, 0, 100),
-                                'difficulty_level' => $text->difficulty_level, // Gardé pour compatibilité
+                                'derived_levels' => $levels, // Niveaux dérivés des classes
                                 'classrooms' => $text->classrooms->map(function ($classroom) {
                                     // Vérifications de sécurité pour éviter les erreurs null
                                     $level = $classroom->level;
-                                    
                                     return [
                                         'id' => $classroom->id,
                                         'name' => $classroom->name,
                                         'level' => $level ? [
                                             'id' => $level->id,
                                             'name' => $level->name,
-                                            'order' => $level->order
-                                        ] : null
+                                        ] : null,
                                     ];
                                 }),
-                                'words_count' => $text->words()->count(),
-                                'interactions_count' => $text->interactions()->count(),
-                                'created_at' => $text->created_at
+                                'words_count' => $text->words_count ?? 0,
+                                'interactions_count' => $text->interactions_count ?? 0,
+                                'students_read_count' => $uniqueStudents, // Nombre d'élèves ayant lu
+                                'total_reading_time' => $totalReadingTime, // Temps total en secondes
+                                'created_at' => $text->created_at,
                             ];
                         });
 
@@ -85,13 +95,22 @@ class TextController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'content' => 'required|string',
-            'difficulty_level' => ['required', Rule::in(['CE1', 'CE2', 'CM1', 'CM2'])]
+            'classroom_ids' => 'array|min:1',
+            'classroom_ids.*' => 'exists:classrooms,id'
         ]);
 
         DB::beginTransaction();
         try {
-            // Créer le texte
-            $text = Text::create($validated);
+            // Créer le texte (sans difficulty_level)
+            $text = Text::create([
+                'title' => $validated['title'],
+                'content' => $validated['content']
+            ]);
+            
+            // Associer les classes si spécifiées
+            if (isset($validated['classroom_ids'])) {
+                $text->classrooms()->sync($validated['classroom_ids']);
+            }
             
             // Analyser et créer les mots
             $this->processTextWords($text);
@@ -101,7 +120,7 @@ class TextController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Texte créé avec succès',
-                'data' => $text->load('words')
+                'data' => $text->load(['words', 'classrooms.level'])
             ], 201);
             
         } catch (\Exception $e) {
@@ -169,12 +188,22 @@ class TextController extends Controller
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
             'content' => 'sometimes|string',
-            'difficulty_level' => ['sometimes', Rule::in(['CE1', 'CE2', 'CM1', 'CM2'])]
+            'classroom_ids' => 'sometimes|array',
+            'classroom_ids.*' => 'exists:classrooms,id'
         ]);
 
         DB::beginTransaction();
         try {
-            $text->update($validated);
+            // Mettre à jour le texte (sans difficulty_level)
+            $text->update([
+                'title' => $validated['title'] ?? $text->title,
+                'content' => $validated['content'] ?? $text->content
+            ]);
+            
+            // Mettre à jour les associations de classes si spécifiées
+            if (isset($validated['classroom_ids'])) {
+                $text->classrooms()->sync($validated['classroom_ids']);
+            }
             
             // Si le contenu a changé, reanalyser les mots
             if (isset($validated['content'])) {

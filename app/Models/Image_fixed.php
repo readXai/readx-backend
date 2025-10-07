@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-
 class Image extends Model
 {
     protected $fillable = [
@@ -25,7 +24,7 @@ class Image extends Model
      */
     public function words(): BelongsToMany
     {
-        return $this->belongsToMany(\App\Models\Word::class, 'word_images');
+        return $this->belongsToMany(Word::class, 'word_images');
     }
 
     /**

@@ -62,6 +62,7 @@ Route::prefix('texts')->group(function () {
 
 // Routes pour les mots
 Route::prefix('words')->group(function () {
+    Route::get('/', [WordController::class, 'index']); // Nouvelle route pour lister tous les mots
     Route::post('/search-similar', [WordController::class, 'searchSimilar']);
     Route::get('/{id}', [WordController::class, 'show']);
     Route::get('/{id}/image-suggestions', [WordController::class, 'getImageSuggestions']);
@@ -81,6 +82,10 @@ Route::prefix('images')->group(function () {
     // Association/dissociation avec les mots
     Route::post('/attach-word', [ImageController::class, 'attachToWord']);
     Route::post('/detach-word', [ImageController::class, 'detachFromWord']);
+    
+    // Nouvelles routes pour la gestion des mots connectés
+    Route::get('/{id}/words', [ImageController::class, 'getWords']);
+    Route::post('/{id}/connect-words', [ImageController::class, 'connectWords']);
 });
 
 // Routes pour les interactions élève-mot
@@ -109,3 +114,4 @@ Route::get('/user', function (Request $request) {
         'version' => '1.0.0'
     ]);
 });
+Route::get('/debug-images', function() { try { $controller = app('App\Http\Controllers\Api\ImageController'); return $controller->index(); } catch (Exception $e) { return response()->json(['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()], 500); } });

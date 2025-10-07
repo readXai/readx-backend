@@ -18,6 +18,74 @@ class ImageController extends Controller
     {
         $this->imageService = $imageService;
     }
+    
+    /**
+     * Récupérer les mots associés à une image
+     */
+    public function getWords(string $id): JsonResponse
+    {
+        $image = Image::find($id);
+        
+        if (!$image) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Image non trouvée'
+            ], 404);
+        }
+        
+        $words = $image->words()->get()->map(function ($word) {
+            return [
+                'id' => $word->id,
+                'word' => $word->word,
+                'word_normalized' => $word->word_normalized,
+                'texts_count' => $word->texts()->count()
+            ];
+        });
+        
+        return response()->json([
+            'success' => true,
+            'data' => $words
+        ]);
+    }
+    
+    /**
+     * Connecter une image à plusieurs mots ou dissocier tous les mots
+     */
+    public function connectWords(Request $request, string $id): JsonResponse
+    {
+        $image = Image::find($id);
+        
+        if (!$image) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Image non trouvée'
+            ], 404);
+        }
+        
+        // Validation modifiée pour accepter un tableau vide (dissociation totale)
+        $validated = $request->validate([
+            'word_ids' => 'present|array',
+            'word_ids.*' => 'exists:words,id'
+        ]);
+        
+        // Synchroniser les mots (remplacer les associations existantes)
+        // Sync avec un tableau vide supprime toutes les associations
+        $image->words()->sync($validated['word_ids']);
+        
+        // Message adapté selon qu'il y a des mots connectés ou non
+        $message = count($validated['word_ids']) > 0 
+            ? count($validated['word_ids']) . ' mot(s) connecté(s) à l\'image avec succès'
+            : 'Tous les mots ont été dissociés de l\'image avec succès';
+        
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'data' => [
+                'image_id' => $image->id,
+                'connected_words_count' => count($validated['word_ids'])
+            ]
+        ]);
+    }
     /**
      * Lister toutes les images
      */

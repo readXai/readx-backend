@@ -18,7 +18,7 @@ class Word extends Model
      */
     public function images(): BelongsToMany
     {
-        return $this->belongsToMany(Image::class, 'word_images');
+        return $this->belongsToMany(\App\Models\Image::class, 'word_images');
     }
 
     /**
@@ -66,6 +66,6 @@ class Word extends Model
             }
         }
         
-        return Image::whereIn('id', array_unique($imageIds))->get();
+        return \App\Models\Image::whereIn('id', array_unique($imageIds))->get();
     }
 }
