@@ -39,13 +39,18 @@ class WordsSeeder extends Seeder
                 $word = Word::firstOrCreate([
                     'word_normalized' => $normalizedWord
                 ], [
-                    'word' => trim($wordText)
+                    'word_text' => trim($wordText),
+                    'position' => 0,
+                    'is_compound' => false
                 ]);
                 
-                // Associer le mot au texte avec sa position
-                $text->words()->syncWithoutDetaching([
-                    $word->id => ['position' => $position]
-                ]);
+                // Associer le mot au texte (relation directe maintenant)
+                if (!$word->text_id) {
+                    $word->update([
+                        'text_id' => $text->id,
+                        'position' => $position
+                    ]);
+                }
                 
                 $position++;
             }

@@ -95,7 +95,7 @@ class TextController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'content' => 'required|string',
-            'classroom_ids' => 'array|min:1',
+            'classroom_ids' => 'sometimes|array|min:1',
             'classroom_ids.*' => 'exists:classrooms,id'
         ]);
 
@@ -257,19 +257,211 @@ class TextController extends Controller
      */
     private function processTextWords(Text $text): void
     {
-        $words = $text->parseWordsFromContent();
-        
-        foreach ($words as $position => $wordText) {
-            $normalized = Text::normalizeArabicWord($wordText);
+        // Utiliser la méthode parseAndCreateWords du modèle Text
+        // qui gère correctement la nouvelle structure avec word_text
+        $text->parseAndCreateWords();
+    }
+
+    /**
+     * Analyser et créer la structure linguistique d'un texte
+     */
+    public function parseTextStructure(Request $request, $textId): JsonResponse
+    {
+        try {
+            $text = Text::findOrFail($textId);
             
-            // Chercher ou créer le mot
-            $word = Word::firstOrCreate(
-                ['word' => $wordText],
-                ['word_normalized' => $normalized]
-            );
+            // Analyser et créer les mots avec leurs unités
+            $text->parseAndCreateWords();
             
-            // Associer le mot au texte avec sa position
-            $text->words()->attach($word->id, ['position' => $position + 1]);
+            // Charger la structure complète
+            $text->load(['words.units.root', 'words.units.images']);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Structure linguistique analysée avec succès',
+                'data' => [
+                    'text' => $text,
+                    'words_count' => $text->words->count(),
+                    'units_count' => $text->words->sum(function($word) {
+                        return $word->units->count();
+                    })
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de l\'analyse de la structure linguistique: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'analyse de la structure linguistique: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir la structure complète d'un texte
+     */
+    public function getTextStructure($textId): JsonResponse
+    {
+        try {
+            $text = Text::with([
+                'words.units.root', 
+                'words.units.images',
+                'classrooms.level'
+            ])->findOrFail($textId);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $text
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération de la structure: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de la structure'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les statistiques linguistiques d'un texte
+     */
+    public function getTextStatistics($textId): JsonResponse
+    {
+        try {
+            $text = Text::with(['words.units'])->findOrFail($textId);
+            
+            $stats = [
+                'words_count' => $text->words->count(),
+                'units_count' => $text->words->sum(function($word) {
+                    return $word->units->count();
+                }),
+                'compound_words_count' => $text->words->where('is_compound', true)->count(),
+                'simple_words_count' => $text->words->where('is_compound', false)->count(),
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors du calcul des statistiques: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du calcul des statistiques'
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer les syllabes pour tous les mots d'un texte
+     */
+    public function generateSyllables($textId): JsonResponse
+    {
+        try {
+            $text = Text::with('words')->findOrFail($textId);
+            
+            $syllablesCount = 0;
+            foreach ($text->words as $word) {
+                $word->generateSyllables();
+                $syllablesCount += $word->syllables()->count();
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Syllabes générées avec succès',
+                'data' => [
+                    'words_count' => $text->words->count(),
+                    'syllables_count' => $syllablesCount
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la génération des syllabes: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération des syllabes: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les syllabes d'un mot spécifique
+     */
+    public function getWordSyllables($textId, $wordId): JsonResponse
+    {
+        try {
+            $word = Word::with('syllables')
+                       ->where('text_id', $textId)
+                       ->findOrFail($wordId);
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'word' => $word->word_text,
+                    'syllables' => $word->syllables->map(function($syllable) {
+                        return [
+                            'id' => $syllable->id,
+                            'text' => $syllable->syllable_text,
+                            'position' => $syllable->syllable_position,
+                            'type' => $syllable->syllable_type,
+                            'is_stressed' => $syllable->is_stressed
+                        ];
+                    })
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des syllabes: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des syllabes'
+            ], 500);
+        }
+    }
+
+    /**
+     * Mettre à jour les syllabes d'un mot (correction manuelle)
+     */
+    public function updateWordSyllables(Request $request, $textId, $wordId): JsonResponse
+    {
+        try {
+            $word = Word::where('text_id', $textId)->findOrFail($wordId);
+            
+            $validated = $request->validate([
+                'syllables' => 'required|array',
+                'syllables.*.text' => 'required|string|max:10',
+                'syllables.*.position' => 'required|integer|min:1',
+                'syllables.*.type' => 'required|in:CV,CVC,CVCC,V',
+                'syllables.*.is_stressed' => 'boolean'
+            ]);
+            
+            // Supprimer les anciennes syllabes
+            $word->syllables()->delete();
+            
+            // Créer les nouvelles syllabes
+            foreach ($validated['syllables'] as $syllableData) {
+                $word->syllables()->create([
+                    'syllable_text' => $syllableData['text'],
+                    'syllable_position' => $syllableData['position'],
+                    'syllable_type' => $syllableData['type'],
+                    'is_stressed' => $syllableData['is_stressed'] ?? false
+                ]);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Syllabes mises à jour avec succès',
+                'data' => $word->load('syllables')
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la mise à jour des syllabes: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour des syllabes'
+            ], 500);
         }
     }
 }

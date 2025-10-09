@@ -16,10 +16,10 @@ class LevelsAndClassroomsSeeder extends Seeder
     {
         // Créer les niveaux scolaires
         $levels = [
-            ['name' => 'CE1', 'description' => 'Cours Élémentaire 1ère année', 'order' => 1],
-            ['name' => 'CE2', 'description' => 'Cours Élémentaire 2ème année', 'order' => 2],
-            ['name' => 'CM1', 'description' => 'Cours Moyen 1ère année', 'order' => 3],
-            ['name' => 'CM2', 'description' => 'Cours Moyen 2ème année', 'order' => 4],
+            ['name' => 'CE1'],
+            ['name' => 'CE2'],
+            ['name' => 'CM1'],
+            ['name' => 'CM2'],
         ];
 
         foreach ($levels as $levelData) {
@@ -93,26 +93,9 @@ class LevelsAndClassroomsSeeder extends Seeder
             
             Student::create([
                 'name' => $fullName,
-                'classroom_id' => $classroom->id,
-                'age' => $this->getAgeForLevel($levelName)
+                'classroom_id' => $classroom->id
             ]);
         }
     }
 
-    /**
-     * Obtenir un âge approprié selon le niveau scolaire
-     */
-    private function getAgeForLevel(string $levelName): int
-    {
-        // Âges selon le niveau
-        $ageRanges = [
-            'CE1' => [6, 7],
-            'CE2' => [7, 8],
-            'CM1' => [8, 9],
-            'CM2' => [9, 10]
-        ];
-
-        $ageRange = $ageRanges[$levelName] ?? [7, 8];
-        return rand($ageRange[0], $ageRange[1]);
-    }
 }

@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id();
             $table->string('title');
             $table->text('content'); // Contenu arabe avec vocalisation
-            $table->enum('difficulty_level', ['CE1', 'CE2', 'CM1', 'CM2'])->nullable();
             $table->timestamps();
         });
     }

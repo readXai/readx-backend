@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             LevelsAndClassroomsSeeder::class,
             TextClassroomSeeder::class,
             WordsSeeder::class,
+            LinguisticStructureSeeder::class,
         ]);
         
         // User::factory(10)->create();

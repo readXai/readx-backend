@@ -11,11 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('images', function (Blueprint $table) {
+        Schema::create('roots', function (Blueprint $table) {
             $table->id();
-            $table->string('image_path'); // Chemin vers le fichier image
-            $table->string('description')->nullable(); // Description optionnelle de l'image
+            $table->string('root_text'); // ex: "ك ت ب"
+            $table->string('root_normalized')->nullable(); // version normalisée
+            $table->text('description')->nullable(); // description de la racine
             $table->timestamps();
+            
+            $table->index('root_text');
+            $table->unique('root_text');
         });
     }
 
@@ -24,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('images');
+        Schema::dropIfExists('roots');
     }
 };

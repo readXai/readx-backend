@@ -115,3 +115,6 @@ Route::get('/user', function (Request $request) {
     ]);
 });
 Route::get('/debug-images', function() { try { $controller = app('App\Http\Controllers\Api\ImageController'); return $controller->index(); } catch (Exception $e) { return response()->json(['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()], 500); } });
+
+// Inclure les routes pour la structure linguistique
+require __DIR__.'/api_linguistic.php';
